@@ -1,6 +1,11 @@
 // Hair space character for precise justification
 const SPACE = '\u200a'
 
+const SEPARATORS = [
+  ' ',
+  '•',
+];
+
 const canvasTxt = {
   debug: false,
   align: 'center',
@@ -61,19 +66,22 @@ const canvasTxt = {
     let textarray: any[] = []
     let temptextarray = mytext.split('\n')
 
-    const spaceWidth = this.justify ? ctx.measureText(SPACE).width : 0
+    const spaceMetrics = ctx.measureText(SPACE)
+    const spaceWidth = this.justify ? spaceMetrics.actualBoundingBoxRight + spaceMetrics.actualBoundingBoxLeft : 0
 
     temptextarray.forEach((txtt) => {
-      let textwidth = ctx.measureText(txtt).width
+      const texttMetrics = ctx.measureText(txtt)
+      let textwidth = texttMetrics.actualBoundingBoxRight + texttMetrics.actualBoundingBoxLeft
       if (textwidth <= width) {
         textarray.push(txtt)
       } else {
         let temptext = txtt
         let linelen = width
-        let textlen
+        let textlen: number;
         let textpixlen
         let texttoprint
-        textwidth = ctx.measureText(temptext).width
+        const temptextMetrics = ctx.measureText(temptext)
+        textwidth = temptextMetrics.actualBoundingBoxRight + temptextMetrics.actualBoundingBoxLeft;
         while (textwidth > linelen) {
           textlen = 0
           textpixlen = 0
@@ -81,21 +89,25 @@ const canvasTxt = {
           while (textpixlen < linelen) {
             textlen++
             texttoprint = temptext.substr(0, textlen)
-            textpixlen = ctx.measureText(texttoprint).width
+            const texttoprintMetrics = ctx.measureText(texttoprint)
+            textpixlen = texttoprintMetrics.actualBoundingBoxRight + texttoprintMetrics.actualBoundingBoxLeft
           }
           // Remove last character that was out of the box
           textlen--
           texttoprint = texttoprint.substr(0, textlen)
           //if statement ensures a new line only happens at a space, and not amidst a word
           const backup = textlen
-          if (temptext.substr(textlen, 1) != ' ') {
-            while (temptext.substr(textlen, 1) != ' ' && textlen != 0) {
+          if (!SEPARATORS.includes(temptext.substr(textlen, 1))) {
+            while (!SEPARATORS.includes(temptext.substr(textlen, 1)) && textlen != 0) {
               textlen--
             }
             if (textlen == 0) {
               textlen = backup
             }
             texttoprint = temptext.substr(0, textlen)
+
+            // We found a separator, now we need to clean up all other separators
+            texttoprint = this.removeCharactersFromEnd(texttoprint, SEPARATORS)
           }
 
           texttoprint = this.justify
@@ -103,7 +115,8 @@ const canvasTxt = {
             : texttoprint
 
           temptext = temptext.substr(textlen)
-          textwidth = ctx.measureText(temptext).width
+          const temptextMetrics2 = ctx.measureText(temptext)
+          textwidth = temptextMetrics2.actualBoundingBoxRight + temptextMetrics2.actualBoundingBoxLeft;
           textarray.push(texttoprint)
         }
         if (textwidth > 0) {
@@ -131,8 +144,16 @@ const canvasTxt = {
       txtY -= negoffset
     }
     //print all lines of text
+    let longestWidth = 0;
     textarray.forEach((txtline) => {
       txtline = txtline.trim()
+
+      const textMetrics = ctx.measureText(txtline)
+      let w = textMetrics.actualBoundingBoxRight + textMetrics.actualBoundingBoxLeft;
+      if (w > longestWidth) {
+        longestWidth = w;
+      }
+
       ctx.fillText(txtline, textanchor, txtY)
       txtY += charHeight
     })
@@ -160,7 +181,7 @@ const canvasTxt = {
 
     const TEXT_HEIGHT = vheight + charHeight
 
-    return { height: TEXT_HEIGHT }
+    return { height: TEXT_HEIGHT, width: longestWidth }
   },
   // Calculate Height of the font
   getTextHeight: function (
@@ -204,7 +225,8 @@ const canvasTxt = {
   ) {
     const text = line.trim()
 
-    const lineWidth = ctx.measureText(text).width
+    const textMetrics = ctx.measureText(text)
+    const lineWidth = textMetrics.actualBoundingBoxRight + textMetrics.actualBoundingBoxLeft;
 
     const nbSpaces = text.split(/\s+/).length - 1
     const nbSpacesToInsert = Math.floor((width - lineWidth) / spaceWidth)
@@ -229,6 +251,25 @@ const canvasTxt = {
 
     return justifiedText
   },
+  removeCharactersFromEnd: function (
+    str: string,
+    characters: string[]
+  ): string {
+    let result = str;
+    
+    // Iterate over each character in the array
+    for (let i = characters.length - 1; i >= 0; i--) {
+      const char = characters[i];
+      
+      // Check if the last character of the result string matches the current character
+      while (result.endsWith(char)) {
+        // Remove the character from the end of the result string
+        result = result.slice(0, result.length - 1);
+      }
+    }
+    
+    return result;
+  }
 }
 
 export default canvasTxt
